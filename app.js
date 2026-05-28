@@ -1,5 +1,5 @@
-var OWM_KEY       = 'ab3eea542da47ba8379b6d7dd93c5c29';       // openweathermap.org
-var UNSPLASH_KEY  = 'NXaTEEzcynG6w0zQ5BJ6FW6j23NgTbBsztpI28zr6II'; 
+var OWM_KEY       = ;       // openweathermap.org
+var UNSPLASH_KEY  = ; 
 var OWM          = 'https://api.openweathermap.org/data/2.5';
 var GEO          = 'https://api.openweathermap.org/geo/1.0';
 var CLAUDE_URL   = 'https://api.anthropic.com/v1/messages';
