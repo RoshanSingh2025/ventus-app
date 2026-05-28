@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VentuS — AI Weather Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <div class="noise-overlay"></div>
+  <div class="ambient-blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+  <canvas id="weatherCanvas"></canvas>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <div id="offlineBanner" class="offline-banner hidden">
+    ⚡ Offline — showing cached data
+  </div>
+
+  <div id="skeletonLoader" class="skeleton-overlay hidden">
+    <div class="app">
+      <aside class="sidebar">
+        <div class="sidebar__brand"><span class="brand-icon">◈</span><span class="brand-name">VentuS</span></div>
+      </aside>
+      <main class="main">
+        <div class="skel skeleton-searchbar"></div>
+        <div class="skeleton-layout">
+          <div class="skeleton-main-card">
+            <div class="skel s-title"></div>
+            <div class="skel s-temp"></div>
+            <div class="skel-grid">
+              <div class="skel s-stat"></div><div class="skel s-stat"></div>
+              <div class="skel s-stat"></div><div class="skel s-stat"></div>
+              <div class="skel s-stat"></div><div class="skel s-stat"></div>
+              <div class="skel s-stat"></div><div class="skel s-stat"></div>
+            </div>
+          </div>
+          <div class="skel s-chart"></div>
+          <div class="skel-ai-row">
+            <div class="skel s-ai"></div><div class="skel s-ai"></div><div class="skel s-ai"></div>
+          </div>
+          <div class="skel-fc-row">
+            <div class="skel s-fc"></div><div class="skel s-fc"></div><div class="skel s-fc"></div>
+            <div class="skel s-fc"></div><div class="skel s-fc"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="app" id="appShell">
+
+    <aside class="sidebar">
+      <div class="sidebar__brand">
+        <span class="brand-icon">◈</span>
+        <span class="brand-name">VentuS</span>
+      </div>
+
+      <div class="sidebar__section">
+        <p class="sidebar__label">Recent</p>
+        <ul id="historyList" class="history-list"></ul>
+        <button id="clearHistory" class="btn-clear">Clear history</button>
+      </div>
+
+      <div class="sidebar__section">
+        <p class="sidebar__label">Units</p>
+        <div class="unit-toggle">
+          <button id="unitMetric"   class="unit-btn active">°C / km/h</button>
+          <button id="unitImperial" class="unit-btn">°F / mph</button>
+        </div>
+      </div>
+
+      <div class="sidebar__section">
+        <p class="sidebar__label">Activity</p>
+        <select id="activitySelect" class="activity-select">
+          <option value="general">General Outdoors</option>
+          <option value="cricket">Cricket / Sports</option>
+          <option value="hiking">Hiking / Trekking</option>
+          <option value="cycling">Cycling</option>
+          <option value="photography">Photography</option>
+          <option value="picnic">Picnic / Events</option>
+          <option value="running">Running</option>
+          <option value="swimming">Swimming</option>
+        </select>
+      </div>
+
+      <div class="sidebar__footer">
+        <span class="footer-dot"></span> OpenWeatherMap
+        <p id="lastUpdated" class="footer-time"></p>
+        <p id="photoCredit" class="photo-credit hidden"></p>
+      </div>
+    </aside>
+
+    <main class="main">
+
+      <header class="search-header">
+        <div class="search-wrap" id="searchWrap">
+          <button id="geoBtn" class="geo-btn" title="Use my location">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+              <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+              <circle cx="12" cy="12" r="9" stroke-dasharray="4 2"/>
+            </svg>
+          </button>
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input id="searchInput" type="text" class="search-input" placeholder="Search city, region…" autocomplete="off"/>
+          <ul id="autocompleteList" class="autocomplete-list hidden"></ul>
+          <button id="searchBtn" class="search-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div id="errorBanner" class="error-banner hidden">
+        <span>⚠</span> <span id="errorMsg">City not found.</span>
+      </div>
+
+      <div id="alertsContainer" class="alerts-container hidden"></div>
+
+      <!-- empty state -->
+      <div id="emptyState" class="empty-state">
+        <div class="empty-orb"></div>
+        <div class="empty-glyph">☁</div>
+        <h2>Where to?</h2>
+        <p>Search any city or tap the location icon for live weather, AI suggestions, charts and a 5-day forecast.</p>
+        <p class="empty-tip"><kbd>Ctrl</kbd> <kbd>K</kbd></p>
+      </div>
+
+      <!-- weather content -->
+      <div id="weatherContent" class="weather-content hidden">
+
+        <!-- current card -->
+        <section class="glass-card current-card" id="currentCard">
+          <div class="card-glow"></div>
+          <div class="current-top">
+            <div>
+              <div id="cityName" class="city-name">—</div>
+              <div id="currentDate" class="current-date">—</div>
+            </div>
+            <div class="current-top-right">
+              <img id="weatherIcon" class="weather-icon" src="" alt=""/>
+              <button id="shareBtn" class="share-btn" title="Share">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="temp-row">
+            <span id="currentTemp" class="temp-value">—</span>
+            <span id="tempUnit"    class="temp-unit">°C</span>
+          </div>
+          <div id="weatherDesc" class="weather-desc">—</div>
+
+          <div class="feels-row">
+            <span class="feels-left">Feels like</span>
+            <span class="feels-track"><span id="feelsBarFill" class="feels-fill"></span></span>
+            <span id="feelsBarLabel" class="feels-right">Comfortable</span>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat"><div class="stat-icon">💧</div><div class="stat-label">Feels Like</div><div id="feelsLike"   class="stat-value">—</div></div>
+            <div class="stat"><div class="stat-icon">🌊</div><div class="stat-label">Humidity</div>  <div id="humidity"    class="stat-value">—</div></div>
+            <div class="stat"><div class="stat-icon">💨</div><div class="stat-label">Wind</div>      <div id="windSpeed"   class="stat-value">—</div></div>
+            <div class="stat"><div class="stat-icon">👁</div><div class="stat-label">Visibility</div><div id="visibility"  class="stat-value">—</div></div>
+            <div class="stat"><div class="stat-icon">☀️</div><div class="stat-label">UV Index</div>  <div id="uvIndex"     class="stat-value">—</div></div>
+            <div class="stat"><div class="stat-icon">🌧</div><div class="stat-label">Rain Chance</div><div id="rainChance" class="stat-value">—</div></div>
+            <div class="stat"><div class="stat-icon">📊</div><div class="stat-label">Pressure</div>  <div id="pressure"    class="stat-value">—</div></div>
+            <div class="stat"><div class="stat-icon">🌿</div><div class="stat-label">AQI</div>       <div id="aqiValue"    class="stat-value">—</div></div>
+          </div>
+
+          <div class="sun-row">
+            <div class="sun-side">
+              <span class="sun-label">Sunrise</span>
+              <span id="sunriseTime" class="sun-val">—</span>
+            </div>
+            <div class="sun-track">
+              <div id="sunArcFill" class="sun-fill"></div>
+              <div id="sunDot"     class="sun-dot"></div>
+            </div>
+            <div class="sun-side sun-side--right">
+              <span class="sun-label">Sunset</span>
+              <span id="sunsetTime" class="sun-val">—</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- chart -->
+        <section class="glass-card chart-section">
+          <div class="chart-header">
+            <h2 class="section-title">48-Hour Trend</h2>
+            <div class="chart-tabs" id="chartTabs">
+              <button class="chart-tab active" data-chart="temp">Temperature</button>
+              <button class="chart-tab"        data-chart="rain">Rain %</button>
+              <button class="chart-tab"        data-chart="wind">Wind</button>
+            </div>
+          </div>
+          <canvas id="weatherChart" height="110"></canvas>
+        </section>
+
+        <!-- AI row -->
+        <div class="ai-row">
+          <section class="glass-card ai-card">
+            <div class="ai-header"><span class="ai-badge"><span class="ai-dot"></span>AI</span><span class="ai-title">Outfit</span></div>
+            <div id="outfitContent" class="ai-body"><div class="ai-loading"><span class="ai-pulse"></span>Thinking…</div></div>
+          </section>
+          <section class="glass-card ai-card">
+            <div class="ai-header"><span class="ai-badge"><span class="ai-dot"></span>AI</span><span class="ai-title">Activity</span></div>
+            <div id="activityContent" class="ai-body"><div class="ai-loading"><span class="ai-pulse"></span>Analysing…</div></div>
+          </section>
+          <section class="glass-card ai-card">
+            <div class="ai-header"><span class="ai-badge live-badge"><span class="ai-dot"></span>Live</span><span class="ai-title">Rain Forecast</span></div>
+            <div id="rainContent" class="ai-body"><div class="ai-loading"><span class="ai-pulse"></span>Loading…</div></div>
+          </section>
+        </div>
+
+        <!-- forecast -->
+        <section class="forecast-section">
+          <h2 class="section-title">5-Day Forecast</h2>
+          <div id="forecastGrid" class="forecast-grid"></div>
+        </section>
+
+        <!-- map -->
+        <section>
+          <h2 class="section-title">Location</h2>
+          <div class="glass-card map-wrap">
+            <div id="weatherMap" class="weather-map"></div>
+          </div>
+        </section>
+
+        <!-- crowdsource -->
+        <section class="glass-card crowdsource-card">
+          <h2 class="section-title">Report Local Conditions</h2>
+          <p class="crowd-desc">See something different outside? Help others with a real-world report.</p>
+          <div class="crowd-options" id="crowdOptions">
+            <button class="crowd-btn" data-r="sunny">☀️ Sunny</button>
+            <button class="crowd-btn" data-r="cloudy">☁️ Cloudy</button>
+            <button class="crowd-btn" data-r="raining">🌧️ Raining</button>
+            <button class="crowd-btn" data-r="windy">💨 Windy</button>
+            <button class="crowd-btn" data-r="foggy">🌫️ Foggy</button>
+            <button class="crowd-btn" data-r="stormy">⛈️ Stormy</button>
+          </div>
+          <div id="crowdMsg" class="crowd-msg hidden"></div>
+        </section>
+
+      </div><!-- /weatherContent -->
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
